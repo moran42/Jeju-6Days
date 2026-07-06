@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="제주 여행 6일 코스 — 7/8~7/13" />
+  <title>제주 여행 코스 · 7/8–7/13</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-inner">
+      <p class="hero-badge">7/8 (수) – 7/13 (월) · 5박 6일</p>
+      <h1>제주 여행 코스</h1>
+      <p class="hero-sub" id="hero-sub"></p>
+      <div class="hero-meta" id="hero-meta"></div>
+    </div>
+  </header>
+
+  <nav class="map-links" aria-label="원본 지도 링크">
+    <h2>저장한 지도</h2>
+    <div class="map-link-grid" id="map-links"></div>
+  </nav>
+
+  <main>
+    <section class="stats" id="stats" aria-label="여행 요약"></section>
+
+    <section class="day-nav-section">
+      <h2>일정</h2>
+      <div class="day-tabs" id="day-tabs" role="tablist"></div>
+    </section>
+
+    <section class="day-content" id="day-content" aria-live="polite"></section>
+
+    <section class="checklist-section">
+      <h2>카카오맵 제주 장소 체크리스트</h2>
+      <p class="section-desc">카카오맵 폴더(91곳) 중 제주 20곳 — 코스에 포함 여부</p>
+      <ul class="checklist" id="kakao-checklist"></ul>
+    </section>
+
+    <section class="extra-section">
+      <h2>네이버 먹거리 (미배정)</h2>
+      <p class="section-desc">시간 여유 시 방문 가능</p>
+      <ul class="extra-list" id="extra-list"></ul>
+    </section>
+  </main>
+
+  <footer>
+    <p>제주 뜨리바다 기준 동선 · 수영 4회 (함덕·세기알·판포·행원)</p>
+    <p class="footer-note">일정은 현장 상황에 맞게 조정하세요</p>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
