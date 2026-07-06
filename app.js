@@ -24,10 +24,11 @@
       `${TRIP.flight.outbound.route} ${TRIP.flight.outbound.time} · 귀국 ${TRIP.flight.inbound.time}`;
 
     const meta = document.getElementById("hero-meta");
+    const swimCount = DAYS.filter((d) => d.swim).length;
     meta.innerHTML = [
       `🏠 ${TRIP.stay.name} (${TRIP.stay.nights}박)`,
       `🚗 ${TRIP.rental.name} ${TRIP.rental.time}`,
-      "🏊 수영 4회",
+      `🏊 수영 ${swimCount}회`,
       "🥐 아베베 베이커리 필수",
     ]
       .map((t) => `<span class="meta-chip">${t}</span>`)
@@ -50,24 +51,16 @@
       .join("");
   }
 
-  function renderStats() {
-    const swimDays = DAYS.filter((d) => d.swim).length;
+  function renderPlacesTotal() {
     const totalStops = DAYS.reduce((n, d) => n + d.stops.length, 0);
-    const swimCount = DAYS.reduce(
-      (n, d) => n + d.stops.filter((s) => s.swim).length,
-      0
-    );
-
-    document.getElementById("stats").innerHTML = `
-      <div class="stat-card"><strong>${DAYS.length}</strong><span>일정</span></div>
-      <div class="stat-card"><strong>${totalStops}</strong><span>방문지</span></div>
-      <div class="stat-card"><strong>${swimCount}</strong><span>수영 (${swimDays}일)</span></div>
-    `;
+    const el = document.getElementById("places-total");
+    if (!el) return;
+    el.textContent = `(총 ${totalStops}곳)`;
   }
 
   function renderMapLegend() {
     const el = document.getElementById("map-legend");
-    if (!el) return;
+    if (!el || typeof DAY_ROUTE_COLORS === "undefined") return;
     const dayLegends = DAYS.map(
       (d, i) =>
         `<span class="legend-item"><span class="legend-line" style="background:${DAY_ROUTE_COLORS[i]}"></span>${d.date}</span>`
@@ -176,9 +169,18 @@
 
   function renderExtraList() {
     const el = document.getElementById("extra-list");
-    el.innerHTML = EXTRA_NAVER_FOOD.map(
-      (name) => `<li>📍 ${name} <span class="place-area">여유 시 방문</span></li>`
-    ).join("");
+    const unassigned = getUnassignedNaverPlaces();
+    if (!unassigned.length) {
+      el.innerHTML =
+        '<li class="extra-empty">네이버 저장 장소가 모두 일정에 반영되었어요</li>';
+      return;
+    }
+    el.innerHTML = unassigned
+      .map(
+        (p) =>
+          `<li>📍 ${p.name} <span class="place-area">${p.folder} · 여유 시 방문</span></li>`
+      )
+      .join("");
   }
 
   function bindTabs() {
@@ -197,7 +199,7 @@
     if (window.TripMap) window.TripMap.initMap();
     renderHero();
     renderMapLinks();
-    renderStats();
+    renderPlacesTotal();
     renderDayTabs();
     renderDayContent();
     renderMapLegend();

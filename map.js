@@ -3,7 +3,9 @@
   let routeLayer = null;
   let routeMarkers = [];
   let categoryMarkers = [];
-  let activeCategories = new Set(Object.keys(CATEGORY_GROUPS));
+  let activeCategories = new Set(
+    Object.keys(typeof CATEGORY_GROUPS !== "undefined" ? CATEGORY_GROUPS : {})
+  );
   let showRoute = true;
   let showAllPlaces = true;
 

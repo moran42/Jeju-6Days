@@ -22,7 +22,7 @@
   </header>
 
   <nav class="map-links" aria-label="원본 지도 링크">
-    <h2>저장한 지도</h2>
+    <h2>저장한 지도 <span id="places-total" class="places-total"></span></h2>
     <div class="map-link-grid" id="map-links"></div>
   </nav>
 
@@ -36,14 +36,11 @@
     </section>
 
     <div class="content-column">
-    <section class="stats" id="stats" aria-label="여행 요약"></section>
-
     <section class="day-nav-section">
       <h2>일정</h2>
       <div class="day-tabs" id="day-tabs" role="tablist"></div>
+      <div class="day-content" id="day-content" aria-live="polite"></div>
     </section>
-
-    <section class="day-content" id="day-content" aria-live="polite"></section>
 
     <section class="checklist-section">
       <h2>카카오맵 제주 장소 체크리스트</h2>
@@ -52,15 +49,15 @@
     </section>
 
     <section class="extra-section">
-      <h2>네이버 먹거리 (미배정)</h2>
-      <p class="section-desc">시간 여유 시 방문 가능</p>
+      <h2>네이버 저장 장소 (미배정)</h2>
+      <p class="section-desc">먹거리·놀거리·디저트 폴더 중 일정에 없는 곳</p>
       <ul class="extra-list" id="extra-list"></ul>
     </section>
     </div>
   </main>
 
   <footer>
-    <p>제주 뜨리바다 기준 동선 · 수영 4회 (함덕·세기알·판포·행원)</p>
+    <p>제주 뜨리바다 기준 동선 · 수영 3회 (함덕·세기알·판포)</p>
     <p class="footer-note">일정은 현장 상황에 맞게 조정하세요</p>
   </footer>
 

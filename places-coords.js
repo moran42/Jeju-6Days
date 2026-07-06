@@ -108,16 +108,45 @@ function buildAllPlaces() {
     });
   });
 
-  KAKAO_JEJU_PLACES.forEach((p) => {
+  function getKakaoPlaceType(name) {
     const typeMap = {
-      회심: "먹거리", 오병장: "먹거리", 번네식당: "먹거리", 매우릉쭈꾸미: "먹거리",
-      통일가든: "먹거리", 그옛맛: "먹거리",
-      글로시말차: "디저트", 와토커피: "카페", 구씨커피로스터스: "카페", 코삿호다: "디저트",
-      행원해변: "수영", 판포포구: "수영",
+      회심: "먹거리",
+      오병장: "먹거리",
+      번네식당: "먹거리",
+      매우릉쭈꾸미: "먹거리",
+      통일가든: "먹거리",
+      그옛맛: "먹거리",
+
+      글로시말차: "디저트",
+      코삿호다: "디저트",
+      우무: "디저트",
+
+      와토커피: "카페",
+      델문도: "카페",
+      구씨커피로스터스: "카페",
+      "5L2F": "카페",
+      로미뮤직하우스: "카페",
+
+      관곶: "놀거리",
+      바라나시책골목: "놀거리",
+      KT한림빌딩: "놀거리",
+      만춘서점: "놀거리",
+      도두슈퍼마켓: "놀거리",
+
+      행원해변: "수영",
+      판포포구: "수영",
     };
+    if (typeMap[name]) return typeMap[name];
+    const key = Object.keys(typeMap).find(
+      (k) => name.includes(k) || k.includes(name)
+    );
+    return key ? typeMap[key] : "놀거리";
+  }
+
+  KAKAO_JEJU_PLACES.forEach((p) => {
     add({
       name: p.name,
-      type: typeMap[p.name] || "놀거리",
+      type: getKakaoPlaceType(p.name),
       address: p.area,
       dayId: null,
       inRoute: false,
@@ -125,10 +154,16 @@ function buildAllPlaces() {
     });
   });
 
-  EXTRA_NAVER_FOOD.forEach((name) => {
+  getUnassignedNaverPlaces().forEach((place) => {
+    const type =
+      place.folder === "디저트"
+        ? "디저트"
+        : place.folder === "놀거리"
+          ? "놀거리"
+          : "먹거리";
     add({
-      name,
-      type: "먹거리",
+      name: place.name,
+      type,
       address: "제주",
       dayId: null,
       inRoute: false,
