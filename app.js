@@ -17,17 +17,7 @@
   };
 
   let activeDay = DAYS[0].id;
-
-  function init() {
-    renderHero();
-    renderMapLinks();
-    renderStats();
-    renderDayTabs();
-    renderDayContent();
-    renderKakaoChecklist();
-    renderExtraList();
-    bindTabs();
-  }
+  window.activeDay = activeDay;
 
   function renderHero() {
     document.getElementById("hero-sub").textContent =
@@ -73,6 +63,16 @@
       <div class="stat-card"><strong>${totalStops}</strong><span>방문지</span></div>
       <div class="stat-card"><strong>${swimCount}</strong><span>수영 (${swimDays}일)</span></div>
     `;
+  }
+
+  function renderMapLegend() {
+    const el = document.getElementById("map-legend");
+    if (!el) return;
+    const dayLegends = DAYS.map(
+      (d, i) =>
+        `<span class="legend-item"><span class="legend-line" style="background:${DAY_ROUTE_COLORS[i]}"></span>${d.date}</span>`
+    ).join("");
+    el.innerHTML = `<span class="legend-title">동선 색상</span>${dayLegends}`;
   }
 
   function renderDayTabs() {
@@ -186,14 +186,34 @@
       const btn = e.target.closest(".day-tab");
       if (!btn) return;
       activeDay = btn.dataset.day;
+      window.activeDay = activeDay;
       renderDayTabs();
       renderDayContent();
+      if (window.TripMap) window.TripMap.updateMap(activeDay);
     });
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
+  function init() {
+    if (window.TripMap) window.TripMap.initMap();
+    renderHero();
+    renderMapLinks();
+    renderStats();
+    renderDayTabs();
+    renderDayContent();
+    renderMapLegend();
+    renderKakaoChecklist();
+    renderExtraList();
+    bindTabs();
+    if (window.TripMap) window.TripMap.updateMap(activeDay);
+  }
+
+  function boot() {
     init();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
   }
 })();

@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -25,7 +26,16 @@
     <div class="map-link-grid" id="map-links"></div>
   </nav>
 
-  <main>
+  <main class="layout">
+    <section class="map-section" aria-label="여행 지도">
+      <h2>지도</h2>
+      <p class="section-desc">날짜 탭을 바꾸면 동선이 바뀌고, 카테고리로 맛집·놀거리를 필터할 수 있어요</p>
+      <div id="category-filters" class="map-controls"></div>
+      <div id="trip-map" class="trip-map"></div>
+      <div class="map-legend" id="map-legend"></div>
+    </section>
+
+    <div class="content-column">
     <section class="stats" id="stats" aria-label="여행 요약"></section>
 
     <section class="day-nav-section">
@@ -46,6 +56,7 @@
       <p class="section-desc">시간 여유 시 방문 가능</p>
       <ul class="extra-list" id="extra-list"></ul>
     </section>
+    </div>
   </main>
 
   <footer>
@@ -53,7 +64,10 @@
     <p class="footer-note">일정은 현장 상황에 맞게 조정하세요</p>
   </footer>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="data.js"></script>
+  <script src="places-coords.js"></script>
+  <script src="map.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
