@@ -1,71 +1,74 @@
 # 제주 여행 코스 (5박 6일)
 
-해쭈 유튜브 · 네이버/카카오맵 저장 장소 기반 제주 일정 플래너입니다.  
-**GitHub Pages 링크 하나로 여행 메이트와 실시간 공동 편집**이 가능합니다.
+해쭈 유튜브 · 네이버/카카오맵 저장 장소 기반 제주 일정 플래너입니다.
 
 ## GitHub Pages 배포
 
 1. 이 repo를 GitHub에 push
 2. **Settings → Pages → Source**: `main` 브랜치 / `/ (root)`
-3. 몇 분 후 `https://<username>.github.io/<repo>/` 에서 접속
+3. `https://<username>.github.io/<repo>/` 링크 공유
 
-## Firebase 실시간 동기화 (필수 — 1회만 설정)
+## 저장 / 동기화 방식 (3단계)
 
-편집 내용은 **Firebase Firestore**에 저장됩니다. 같은 Pages 링크를 연 사람끼리 자동으로 공유됩니다.
+| 방식 | 설정 | 메이트 공유 |
+|------|------|-------------|
+| **① 이 기기 저장** | 없음 | 같은 폰/PC에서만 유지 |
+| **② JSON 공유** | 없음 | **공유** → 카톡 → **가져오기** |
+| **③ Supabase 자동** | 1회 (아래) | 링크만 공유, 2초마다 자동 반영 |
 
-### 1. Firebase 프로젝트 만들기
+> Firebase는 제거했습니다. 설정 없이도 **② JSON 공유**만으로 메이트와 일정을 맞출 수 있어요.
 
-1. [Firebase Console](https://console.firebase.google.com/) → 프로젝트 추가
-2. **Firestore Database** 생성 (테스트 모드로 시작 가능)
-3. **프로젝트 설정 → 일반 → 내 앱 → 웹(`</>`)** 추가
-4. 표시되는 `firebaseConfig` 값을 복사
+### JSON 공유 (가장 간단)
 
-### 2. `firebase-config.js` 수정
+1. 편집 후 **공유** 클릭 → 클립보드 복사
+2. 카톡으로 메이트에게 전송
+3. 메이트가 **가져오기** → 붙여넣기
+
+### Supabase 자동 동기화 (선택, 5분 설정)
+
+[target-checklist](https://jung-shin-young.github.io/target-checklist)와 같은 방식입니다.
+
+1. [Supabase](https://supabase.com/) 무료 프로젝트 생성
+2. SQL Editor에서 실행:
+
+```sql
+create table if not exists trip_data (
+  trip_id text primary key,
+  payload jsonb not null default '{}',
+  updated_at timestamptz not null default now()
+);
+
+alter table trip_data enable row level security;
+
+create policy "trip read" on trip_data for select using (true);
+create policy "trip insert" on trip_data for insert with check (true);
+create policy "trip update" on trip_data for update using (true);
+```
+
+3. **Settings → API** 에서 Project URL, `anon` key 복사
+4. `supabase-config.js` 수정 후 push:
 
 ```js
-const FIREBASE_CONFIG = {
-  apiKey: "...",
-  authDomain: "...",
-  projectId: "...",
-  storageBucket: "...",
-  messagingSenderId: "...",
-  appId: "...",
-  tripId: "jeju-2026",  // 메이트와 공유할 문서 ID (원하면 바꿔도 됨)
+const SUPABASE_CONFIG = {
+  url: "https://xxxx.supabase.co",
+  anonKey: "eyJ...",
+  tripId: "jeju-2026",
 };
 ```
 
-수정 후 **commit → push** 하면 Pages에 반영됩니다.
-
-### 3. Firestore 보안 규칙
-
-Firebase Console → Firestore → 규칙:
-
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /trips/{tripId} {
-      allow read, write: if true;
-    }
-  }
-}
-```
-
-> 여행 일정용이라 열어두었습니다. `tripId`를 추측하기 어렵게 바꾸면 URL을 모르는 사람은 문서를 찾기 어렵습니다.
+헤더에 **🟢 자동 동기화 중**이 보이면 메이트와 자동 공유됩니다.
 
 ## 사용 방법
 
 | 기능 | 설명 |
 |------|------|
 | **타임라인** | 일정 보기 |
-| **코스 편집** | 시간·장소 블록 수정 → 자동 클라우드 저장 |
-| **↻ 새로고침** | 카카오/네이버에 새로 저장한 장소 붙여넣기 |
+| **코스 편집** | 시간·장소 블록 수정 |
+| **공유 / 가져오기** | JSON으로 메이트와 일정 주고받기 |
+| **↻ 링크에서 업데이트** | 카카오·네이버 저장 폴더에서 미배정 장소 가져오기 |
 | **지도** | 날짜별 동선 + 카테고리 필터 |
-
-헤더에 **🟢 실시간 동기화 중**이 보이면 메이트와 연결된 상태입니다.
 
 ## 주의
 
-- **localStorage는 사용하지 않습니다.** 브라우저마다 따로 저장되지 않고, Firebase에만 저장됩니다.
-- `firebase-config.js`를 설정하지 않으면 기본 일정만 보이고, 편집은 메이트와 공유되지 않습니다.
-- Firebase 무료 플랜으로 여행 일정 규모는 충분합니다.
+- Git push는 **코드 배포**용입니다. 일정 편집은 Git과 무관해요.
+- Supabase 없이도 이 기기 저장 + JSON 공유로 충분히 협업할 수 있습니다.

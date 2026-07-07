@@ -33,13 +33,15 @@
     if (!el) return;
 
     const labels = {
-      connecting: { text: "☁️ 클라우드 연결 중…", cls: "sync-connecting" },
-      synced: { text: "🟢 실시간 동기화 중", cls: "sync-ok" },
+      connecting: { text: "☁️ 연결 중…", cls: "sync-connecting" },
+      synced: { text: "🟢 자동 동기화 중", cls: "sync-ok" },
       saving: { text: "💾 저장 중…", cls: "sync-saving" },
-      saved: { text: "✅ 클라우드에 저장됨", cls: "sync-ok" },
-      offline: { text: "⚠️ 동기화 미설정", cls: "sync-offline" },
+      saved: { text: "✅ 저장됨", cls: "sync-ok" },
+      local: { text: "📱 이 기기에 저장됨", cls: "sync-offline" },
+      "local-saved": { text: "📱 이 기기에 저장됨", cls: "sync-offline" },
+      offline: { text: "📱 이 기기에 저장됨", cls: "sync-offline" },
       error: { text: "🔴 동기화 오류", cls: "sync-error" },
-      "remote-updated": { text: "🟢 실시간 동기화 중", cls: "sync-ok" },
+      "remote-updated": { text: "🟢 자동 동기화 중", cls: "sync-ok" },
     };
 
     const info = labels[status] || labels.synced;
@@ -51,18 +53,18 @@
       if (!TripSync.isConfigured()) {
         banner.hidden = false;
         banner.textContent =
-          "Firebase가 설정되지 않았습니다. 편집 내용이 메이트와 공유되지 않아요. README의 설정 방법을 따라 firebase-config.js를 채워주세요.";
+          "Supabase 미설정 — 이 기기에 자동 저장됩니다. 메이트와 공유하려면 「공유」로 복사 후 카톡으로 보내고, 상대는 「가져오기」를 누르세요.";
       } else if (status === "error") {
         banner.hidden = false;
-        banner.textContent = `동기화 오류: ${detail || "연결을 확인해주세요"}`;
+        banner.textContent = `동기화 오류: ${detail || "연결을 확인해주세요"} · JSON 공유는 계속 사용할 수 있어요`;
       } else {
         banner.hidden = true;
       }
     }
 
     if (status === "saved" && window.TripEditor) {
-      TripEditor.showToast("클라우드에 저장됐어요 · 휴대폰에서 새로고침하세요");
-      setTimeout(() => renderSyncStatus("synced"), 2000);
+      TripEditor.showToast("저장됐어요");
+      setTimeout(() => renderSyncStatus("synced"), 1500);
       return;
     }
 
@@ -315,6 +317,41 @@
     });
   }
 
+  function bindShareButtons() {
+    const btnCopy = document.getElementById("btn-share-copy");
+    const btnImport = document.getElementById("btn-share-import");
+
+    if (btnCopy) {
+      btnCopy.addEventListener("click", async () => {
+        try {
+          const result = await TripSync.copyShare();
+          if (result === "clipboard" && window.TripEditor) {
+            TripEditor.showToast("일정을 복사했어요 · 카톡으로 보내세요");
+          } else if (window.prompt) {
+            window.prompt("아래를 복사해서 메이트에게 보내세요", result);
+          }
+        } catch (err) {
+          if (window.TripEditor) TripEditor.showToast("복사 실패");
+        }
+      });
+    }
+
+    if (btnImport) {
+      btnImport.addEventListener("click", () => {
+        const text = window.prompt("메이트가 보낸 일정 JSON을 붙여넣으세요");
+        if (!text) return;
+        try {
+          TripSync.importJson(text);
+          refreshAll();
+          if (window.TripEditor) TripEditor.showToast("일정을 가져왔어요");
+          renderSyncStatus(TripSync.isConfigured() ? "synced" : "local");
+        } catch (err) {
+          if (window.TripEditor) TripEditor.showToast("가져오기 실패 — JSON을 확인해주세요");
+        }
+      });
+    }
+  }
+
   function bindSyncRefresh() {
     const btn = document.getElementById("btn-sync-refresh");
     if (btn) {
@@ -402,6 +439,7 @@
     bindTabs();
     bindViewToggle();
     bindSyncRefresh();
+    bindShareButtons();
     bindRefreshPanel();
 
     if (window.TripEditor) {
@@ -424,6 +462,8 @@
       renderSyncStatus(status, detail);
       if (
         status === "synced" ||
+        status === "local" ||
+        status === "local-saved" ||
         status === "offline" ||
         status === "remote-updated" ||
         status === "error"
@@ -434,11 +474,7 @@
 
     TripSync.init().then((status) => {
       refreshAll();
-      if (status === "offline" || status === "error") {
-        renderSyncStatus(status === "error" ? "error" : "offline");
-      } else {
-        renderSyncStatus("synced");
-      }
+      renderSyncStatus(status === "synced" ? "synced" : "local");
     });
   }
 

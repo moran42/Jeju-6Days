@@ -1,27 +1,32 @@
 const TripSync = (function () {
-  let enabled = false;
+  const STORAGE_KEY = "jeju-trip-v1";
+  const POLL_MS = 2000;
+
   let ready = false;
-  let isFirstLoad = true;
-  let pendingSave = false;
+  let polling = false;
+  let pollTimer = null;
   let saveTimer = null;
-  let unsubscribe = null;
+  let pendingSave = false;
   let queuedState = null;
-  let lastSavedAt = null;
+  let lastRemoteAt = 0;
+  let lastLocalAt = 0;
   const listeners = new Set();
 
   function isConfigured() {
     return (
-      typeof FIREBASE_CONFIG !== "undefined" &&
-      FIREBASE_CONFIG.apiKey &&
-      !String(FIREBASE_CONFIG.apiKey).includes("YOUR_")
+      typeof SUPABASE_CONFIG !== "undefined" &&
+      SUPABASE_CONFIG.url &&
+      SUPABASE_CONFIG.anonKey &&
+      !String(SUPABASE_CONFIG.url).includes("YOUR_")
     );
   }
 
-  function docRef() {
-    return firebase
-      .firestore()
-      .collection("trips")
-      .doc(FIREBASE_CONFIG.tripId || "jeju-2026");
+  function headers() {
+    return {
+      apikey: SUPABASE_CONFIG.anonKey,
+      Authorization: `Bearer ${SUPABASE_CONFIG.anonKey}`,
+      "Content-Type": "application/json",
+    };
   }
 
   function notify(status, detail) {
@@ -40,158 +45,225 @@ const TripSync = (function () {
     notify(status);
   }
 
-  function seedIfEmpty(ref) {
-    return ref.set({
-      days: TripStorage.deepClone(DEFAULT_DAYS),
-      kakaoPlaces: null,
-      naverPlaces: null,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-    });
+  function stateTimestamp(state) {
+    return Number(state?.updatedAt || 0);
   }
 
-  function applySnapshot(data, fromRemote) {
-    const applied = TripStorage.applyRemote(data);
+  function wrapState(state) {
+    return {
+      days: state.days,
+      kakaoPlaces: state.kakaoPlaces,
+      naverPlaces: state.naverPlaces,
+      updatedAt: Date.now(),
+    };
+  }
+
+  function saveLocal(state) {
+    const wrapped = wrapState(state);
+    lastLocalAt = wrapped.updatedAt;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(wrapped));
+    } catch (err) {
+      console.warn("localStorage save failed:", err);
+    }
+    return wrapped;
+  }
+
+  function loadLocal() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function applyState(data, fromRemote) {
+    const payload = {
+      days: data.days,
+      kakaoPlaces: data.kakaoPlaces,
+      naverPlaces: data.naverPlaces,
+    };
+    const applied = TripStorage.applyRemote(payload);
     if (!applied) {
-      notify("error", "Firestore 데이터 형식이 올바르지 않아 기본 일정을 사용합니다.");
-      if (!ready) markReady("offline");
-      return;
+      notify("error", "데이터 형식이 올바르지 않아요");
+      return false;
     }
     if (typeof refreshAllPlaces === "function") refreshAllPlaces();
-
-    if (fromRemote && !isFirstLoad && !pendingSave) {
-      notify("remote-updated");
-    }
-    isFirstLoad = false;
-    if (!ready) markReady("synced");
+    if (fromRemote) notify("remote-updated");
     else notify("synced");
+    return true;
   }
 
-  function flushQueue() {
-    if (!enabled || !queuedState) return;
-    const state = queuedState;
-    queuedState = null;
-    push(state, true);
-  }
-
-  function initOffline() {
-    DAYS = TripStorage.deepClone(DEFAULT_DAYS);
-    markReady("offline");
-  }
-
-  function initOnline() {
+  async function pullFromCloud() {
+    if (!isConfigured()) return false;
     try {
-      firebase.initializeApp(FIREBASE_CONFIG);
-      enabled = true;
-      notify("connecting");
-
-      const ref = docRef();
-      unsubscribe = ref.onSnapshot(
-        (snap) => {
-          if (!snap.exists) {
-            seedIfEmpty(ref).catch((err) => {
-              console.error("Firestore seed error:", err);
-              if (!ready) markReady("offline");
-              notify("error", err.message);
-            });
-            return;
-          }
-          applySnapshot(snap.data(), true);
-          flushQueue();
-        },
-        (err) => {
-          console.error("Firestore sync error:", err);
-          if (!ready) markReady("offline");
-          notify("error", err.message);
-        }
+      const tripId = encodeURIComponent(SUPABASE_CONFIG.tripId || "jeju-2026");
+      const res = await fetch(
+        `${SUPABASE_CONFIG.url}/rest/v1/trip_data?trip_id=eq.${tripId}&select=payload,updated_at`,
+        { headers: headers() }
       );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const rows = await res.json();
+      if (!rows.length) return false;
 
-      setTimeout(() => {
-        if (!ready) {
-          console.warn("Firestore sync timeout — using default itinerary");
-          markReady("offline");
-          notify("error", "클라우드 연결 시간 초과");
-        }
-      }, 8000);
-    } catch (err) {
-      console.error("Firebase init error:", err);
-      DAYS = TripStorage.deepClone(DEFAULT_DAYS);
-      notify("error", err.message);
-      markReady("offline");
-    }
-  }
+      const remoteAt = new Date(rows[0].updated_at).getTime();
+      if (remoteAt <= lastRemoteAt) return false;
+      lastRemoteAt = remoteAt;
 
-  function init() {
-    if (!isConfigured()) {
-      initOffline();
-      return Promise.resolve("offline");
-    }
-    initOnline();
-    return whenReady();
-  }
-
-  function push(state, immediate) {
-    if (!isConfigured()) return Promise.resolve(false);
-
-    if (!enabled) {
-      queuedState = state;
-      notify("connecting");
-      return Promise.resolve(false);
-    }
-
-    clearTimeout(saveTimer);
-    pendingSave = true;
-    notify("saving");
-
-    const doSave = () =>
-      docRef()
-        .set(
-          {
-            days: state.days,
-            kakaoPlaces: state.kakaoPlaces,
-            naverPlaces: state.naverPlaces,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        )
-        .then(() => {
-          lastSavedAt = new Date();
-          notify("saved");
-          return true;
-        })
-        .catch((err) => {
-          console.error("Firestore save error:", err);
-          notify("error", err.message);
-          return false;
-        })
-        .finally(() => {
-          setTimeout(() => {
-            pendingSave = false;
-            notify("synced");
-          }, 200);
-        });
-
-    if (immediate) return doSave();
-
-    return new Promise((resolve) => {
-      saveTimer = setTimeout(async () => {
-        resolve(await doSave());
-      }, 500);
-    });
-  }
-
-  async function forcePull() {
-    if (!enabled) return false;
-    try {
-      const snap = await docRef().get();
-      if (!snap.exists) return false;
-      applySnapshot(snap.data(), true);
-      notify("synced");
+      const payload = rows[0].payload || {};
+      payload.updatedAt = remoteAt;
+      if (remoteAt > lastLocalAt) {
+        applyState(payload, true);
+        saveLocal(payload);
+      }
       return true;
     } catch (err) {
-      console.error("Firestore pull error:", err);
+      console.error("Cloud pull error:", err);
       notify("error", err.message);
       return false;
     }
+  }
+
+  async function pushToCloud(state, immediate) {
+    if (!isConfigured()) return false;
+
+    if (!immediate) {
+      queuedState = state;
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        const next = queuedState;
+        queuedState = null;
+        if (next) pushToCloud(next, true);
+      }, 400);
+      return true;
+    }
+
+    pendingSave = true;
+    notify("saving");
+
+    try {
+      const wrapped = wrapState(state);
+      const tripId = SUPABASE_CONFIG.tripId || "jeju-2026";
+      const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/trip_data`, {
+        method: "POST",
+        headers: {
+          ...headers(),
+          Prefer: "resolution=merge-duplicates,return=minimal",
+        },
+        body: JSON.stringify({
+          trip_id: tripId,
+          payload: {
+            days: wrapped.days,
+            kakaoPlaces: wrapped.kakaoPlaces,
+            naverPlaces: wrapped.naverPlaces,
+          },
+          updated_at: new Date().toISOString(),
+        }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      lastRemoteAt = wrapped.updatedAt;
+      notify("saved");
+      return true;
+    } catch (err) {
+      console.error("Cloud save error:", err);
+      notify("error", err.message);
+      return false;
+    } finally {
+      setTimeout(() => {
+        pendingSave = false;
+        notify("synced");
+      }, 150);
+    }
+  }
+
+  function startPolling() {
+    if (!isConfigured() || polling) return;
+    polling = true;
+    pollTimer = setInterval(() => {
+      if (document.visibilityState !== "visible" || pendingSave) return;
+      pullFromCloud();
+    }, POLL_MS);
+  }
+
+  function stopPolling() {
+    polling = false;
+    clearInterval(pollTimer);
+  }
+
+  function bootstrap() {
+    const local = loadLocal();
+    if (local && TripStorage.applyRemote(local)) {
+      lastLocalAt = stateTimestamp(local);
+      if (typeof refreshAllPlaces === "function") refreshAllPlaces();
+    }
+  }
+
+  async function init() {
+    bootstrap();
+
+    if (!isConfigured()) {
+      markReady("local");
+      return "local";
+    }
+
+    notify("connecting");
+    const ok = await pullFromCloud();
+    if (!ok && !loadLocal()) {
+      await pushToCloud(TripStorage.getState(), true);
+    }
+    startPolling();
+    markReady("synced");
+    return "synced";
+  }
+
+  function push(state, immediate) {
+    const wrapped = saveLocal(state);
+    notify("local-saved");
+
+    if (!isConfigured()) {
+      notify("local");
+      return Promise.resolve(false);
+    }
+
+    return pushToCloud(state, immediate);
+  }
+
+  async function forcePull() {
+    if (isConfigured()) return pullFromCloud();
+    const local = loadLocal();
+    if (local) {
+      applyState(local, true);
+      return true;
+    }
+    return false;
+  }
+
+  function exportJson() {
+    const state = TripStorage.getState();
+    return JSON.stringify(wrapState(state), null, 2);
+  }
+
+  function importJson(text) {
+    const parsed = JSON.parse(text);
+    if (!parsed?.days) throw new Error("일정 데이터가 없어요");
+    const wrapped = wrapState(parsed);
+    applyState(wrapped, false);
+    saveLocal(wrapped);
+    pushToCloud(wrapped, true);
+    return true;
+  }
+
+  async function copyShare() {
+    const text = exportJson();
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return "clipboard";
+    }
+    return text;
   }
 
   function onUpdate(fn) {
@@ -212,18 +284,23 @@ const TripSync = (function () {
     });
   }
 
-  function getLastSavedAt() {
-    return lastSavedAt;
-  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && isConfigured()) {
+      pullFromCloud();
+    }
+  });
 
   return {
     init,
     push,
     forcePull,
+    exportJson,
+    importJson,
+    copyShare,
     onUpdate,
     whenReady,
     isConfigured,
-    isEnabled: () => enabled,
-    getLastSavedAt,
+    isEnabled: () => isConfigured(),
+    stopPolling,
   };
 })();

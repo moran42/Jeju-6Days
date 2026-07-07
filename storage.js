@@ -52,12 +52,8 @@ const TripStorage = (function () {
 
   function persist() {
     const state = getState();
-    if (typeof TripSync !== "undefined" && TripSync.isConfigured()) {
+    if (typeof TripSync !== "undefined") {
       TripSync.push(state);
-      return;
-    }
-    if (typeof TripEditor !== "undefined") {
-      TripEditor.showToast("동기화 미설정 — 이 기기에만 반영됩니다");
     }
   }
 
