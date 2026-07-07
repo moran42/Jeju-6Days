@@ -114,7 +114,7 @@
     container.innerHTML = `
       <div class="edit-toolbar">
         <button type="button" class="btn-secondary" id="btn-add-stop-top">+ 맨 위에 추가</button>
-        <button type="button" class="btn-secondary" id="btn-save-stops">저장</button>
+        <span class="edit-hint">수정하면 자동 저장돼요</span>
         <button type="button" class="btn-ghost" id="btn-reset-day">이 날 초기화</button>
       </div>
       <div class="edit-blocks-scroll">${blocks}</div>
@@ -133,23 +133,13 @@
       saveCurrentDay(dayId, container);
     });
 
-    container.querySelector("#btn-save-stops").addEventListener("click", async () => {
-      saveCurrentDay(dayId, container);
-      await TripSync.push(TripStorage.getState(), true);
-      showToast(
-        TripSync.isConfigured()
-          ? "저장됐어요 · 메이트 화면에 곧 반영됩니다"
-          : "저장됐어요 · 공유 버튼으로 메이트에게 보내세요"
-      );
-    });
-
     container.querySelector("#btn-reset-day").addEventListener("click", () => {
       if (!confirm("이 날 일정을 기본값으로 되돌릴까요?")) return;
       TripStorage.resetDay(dayId);
       refreshAllPlaces();
       renderEditor(dayId, container);
       notifyChange();
-      showToast("기본 일정으로 복원했어요 · 메이트에게도 반영됩니다");
+      showToast("기본 일정으로 복원했어요");
     });
 
     scroll.addEventListener("click", (e) => {

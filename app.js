@@ -29,47 +29,27 @@
 
   function renderSyncStatus(status, detail) {
     const el = document.getElementById("sync-status");
-    const banner = document.getElementById("sync-banner");
     if (!el) return;
 
     const labels = {
-      connecting: { text: "☁️ 연결 중…", cls: "sync-connecting" },
-      synced: { text: "🟢 자동 동기화 중", cls: "sync-ok" },
-      saving: { text: "💾 저장 중…", cls: "sync-saving" },
-      saved: { text: "✅ 저장됨", cls: "sync-ok" },
-      local: { text: "📱 이 기기에 저장됨", cls: "sync-offline" },
-      "local-saved": { text: "📱 이 기기에 저장됨", cls: "sync-offline" },
-      offline: { text: "📱 이 기기에 저장됨", cls: "sync-offline" },
-      error: { text: "🔴 동기화 오류", cls: "sync-error" },
-      "remote-updated": { text: "🟢 자동 동기화 중", cls: "sync-ok" },
+      connecting: { text: "불러오는 중…", cls: "sync-connecting" },
+      synced: { text: "메이트와 함께 편집 중", cls: "sync-ok" },
+      saving: { text: "저장 중…", cls: "sync-saving" },
+      saved: { text: "메이트와 함께 편집 중", cls: "sync-ok" },
+      local: { text: "이 기기에만 저장됨", cls: "sync-offline" },
+      "local-saved": { text: "이 기기에만 저장됨", cls: "sync-offline" },
+      offline: { text: "이 기기에만 저장됨", cls: "sync-offline" },
+      error: { text: "잠시 연결 안 됨", cls: "sync-error" },
+      "remote-updated": { text: "메이트와 함께 편집 중", cls: "sync-ok" },
     };
 
     const info = labels[status] || labels.synced;
     el.textContent = info.text;
     el.className = `sync-status ${info.cls}`;
-    if (detail && status === "error") el.title = detail;
-
-    if (banner) {
-      if (!TripSync.isConfigured()) {
-        banner.hidden = false;
-        banner.textContent =
-          "Supabase 미연동 — supabase-config.js에 URL·키를 넣어야 자동 동기화됩니다. 지금은 이 기기 저장 + 「공유」/「가져오기」를 쓰세요.";
-      } else if (status === "error") {
-        banner.hidden = false;
-        banner.textContent = `동기화 오류: ${detail || "연결을 확인해주세요"} · JSON 공유는 계속 사용할 수 있어요`;
-      } else {
-        banner.hidden = true;
-      }
-    }
-
-    if (status === "saved" && window.TripEditor) {
-      TripEditor.showToast("저장됐어요");
-      setTimeout(() => renderSyncStatus("synced"), 1500);
-      return;
-    }
+    el.title = status === "error" && detail ? detail : "";
 
     if (status === "remote-updated" && window.TripEditor) {
-      TripEditor.showToast("다른 메이트가 일정을 수정했어요");
+      TripEditor.showToast("일정이 업데이트됐어요");
     }
   }
 
@@ -317,41 +297,6 @@
     });
   }
 
-  function bindShareButtons() {
-    const btnCopy = document.getElementById("btn-share-copy");
-    const btnImport = document.getElementById("btn-share-import");
-
-    if (btnCopy) {
-      btnCopy.addEventListener("click", async () => {
-        try {
-          const result = await TripSync.copyShare();
-          if (result === "clipboard" && window.TripEditor) {
-            TripEditor.showToast("일정을 복사했어요 · 카톡으로 보내세요");
-          } else if (window.prompt) {
-            window.prompt("아래를 복사해서 메이트에게 보내세요", result);
-          }
-        } catch (err) {
-          if (window.TripEditor) TripEditor.showToast("복사 실패");
-        }
-      });
-    }
-
-    if (btnImport) {
-      btnImport.addEventListener("click", () => {
-        const text = window.prompt("메이트가 보낸 일정 JSON을 붙여넣으세요");
-        if (!text) return;
-        try {
-          TripSync.importJson(text);
-          refreshAll();
-          if (window.TripEditor) TripEditor.showToast("일정을 가져왔어요");
-          renderSyncStatus(TripSync.isConfigured() ? "synced" : "local");
-        } catch (err) {
-          if (window.TripEditor) TripEditor.showToast("가져오기 실패 — JSON을 확인해주세요");
-        }
-      });
-    }
-  }
-
   function bindSyncRefresh() {
     const btn = document.getElementById("btn-sync-refresh");
     if (btn) {
@@ -439,7 +384,6 @@
     bindTabs();
     bindViewToggle();
     bindSyncRefresh();
-    bindShareButtons();
     bindRefreshPanel();
 
     if (window.TripEditor) {

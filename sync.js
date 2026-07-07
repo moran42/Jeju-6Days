@@ -1,6 +1,7 @@
 const TripSync = (function () {
   const STORAGE_KEY = "jeju-trip-v1";
-  const POLL_MS = 2000;
+  const POLL_MS = 3000;
+  const MAX_POLL_ERRORS = 3;
 
   let ready = false;
   let polling = false;
@@ -10,6 +11,7 @@ const TripSync = (function () {
   let queuedState = null;
   let lastRemoteAt = 0;
   let lastLocalAt = 0;
+  let pollErrorCount = 0;
   const listeners = new Set();
 
   function isConfigured() {
@@ -21,16 +23,13 @@ const TripSync = (function () {
     );
   }
 
-  function headers() {
+  function headers({ json = false } = {}) {
     const key = SUPABASE_CONFIG.anonKey;
-    const h = {
-      apikey: key,
-      "Content-Type": "application/json",
-    };
-    // sb_publishable_ 키는 JWT가 아니라 Authorization 헤더에 넣으면 거부됨
+    const h = { apikey: key };
     if (!String(key).startsWith("sb_publishable_")) {
       h.Authorization = `Bearer ${key}`;
     }
+    if (json) h["Content-Type"] = "application/json";
     return h;
   }
 
@@ -84,6 +83,15 @@ const TripSync = (function () {
     }
   }
 
+  async function readError(res) {
+    try {
+      const data = await res.json();
+      return data.message || data.error || data.hint || `HTTP ${res.status}`;
+    } catch (_) {
+      return `HTTP ${res.status}`;
+    }
+  }
+
   function applyState(data, fromRemote) {
     const payload = {
       days: data.days,
@@ -101,7 +109,7 @@ const TripSync = (function () {
     return true;
   }
 
-  async function pullFromCloud() {
+  async function pullFromCloud({ silent = false } = {}) {
     if (!isConfigured()) return false;
     try {
       const tripId = encodeURIComponent(SUPABASE_CONFIG.tripId || "jeju-2026");
@@ -109,8 +117,11 @@ const TripSync = (function () {
         `${SUPABASE_CONFIG.url}/rest/v1/trip_data?trip_id=eq.${tripId}&select=payload,updated_at`,
         { headers: headers() }
       );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(await readError(res));
+
       const rows = await res.json();
+      pollErrorCount = 0;
+
       if (!rows.length) return false;
 
       const remoteAt = new Date(rows[0].updated_at).getTime();
@@ -123,10 +134,14 @@ const TripSync = (function () {
         applyState(payload, true);
         saveLocal(payload);
       }
+      if (!silent) notify("synced");
       return true;
     } catch (err) {
+      pollErrorCount += 1;
       console.error("Cloud pull error:", err);
-      notify("error", err.message);
+      if (!silent || pollErrorCount >= MAX_POLL_ERRORS) {
+        notify("error", err.message || "연결을 확인해주세요");
+      }
       return false;
     }
   }
@@ -151,31 +166,45 @@ const TripSync = (function () {
     try {
       const wrapped = wrapState(state);
       const tripId = SUPABASE_CONFIG.tripId || "jeju-2026";
-      const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/trip_data`, {
-        method: "POST",
-        headers: {
-          ...headers(),
-          Prefer: "resolution=merge-duplicates,return=minimal",
-        },
-        body: JSON.stringify({
-          trip_id: tripId,
-          payload: {
-            days: wrapped.days,
-            kakaoPlaces: wrapped.kakaoPlaces,
-            naverPlaces: wrapped.naverPlaces,
-          },
-          updated_at: new Date().toISOString(),
-        }),
-      });
+      const payload = {
+        days: wrapped.days,
+        kakaoPlaces: wrapped.kakaoPlaces,
+        naverPlaces: wrapped.naverPlaces,
+      };
+      const body = {
+        payload,
+        updated_at: new Date().toISOString(),
+      };
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      let res = await fetch(
+        `${SUPABASE_CONFIG.url}/rest/v1/trip_data?trip_id=eq.${encodeURIComponent(tripId)}`,
+        {
+          method: "PATCH",
+          headers: { ...headers({ json: true }), Prefer: "return=minimal" },
+          body: JSON.stringify(body),
+        }
+      );
 
+      if (!res.ok && res.status !== 406) {
+        throw new Error(await readError(res));
+      }
+
+      if (res.status === 406 || res.status === 404) {
+        res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/trip_data`, {
+          method: "POST",
+          headers: { ...headers({ json: true }), Prefer: "return=minimal" },
+          body: JSON.stringify({ trip_id: tripId, ...body }),
+        });
+        if (!res.ok) throw new Error(await readError(res));
+      }
+
+      pollErrorCount = 0;
       lastRemoteAt = wrapped.updatedAt;
       notify("saved");
       return true;
     } catch (err) {
       console.error("Cloud save error:", err);
-      notify("error", err.message);
+      notify("error", err.message || "저장 실패");
       return false;
     } finally {
       setTimeout(() => {
@@ -190,7 +219,7 @@ const TripSync = (function () {
     polling = true;
     pollTimer = setInterval(() => {
       if (document.visibilityState !== "visible" || pendingSave) return;
-      pullFromCloud();
+      pullFromCloud({ silent: true });
     }, POLL_MS);
   }
 
@@ -216,17 +245,17 @@ const TripSync = (function () {
     }
 
     notify("connecting");
-    const ok = await pullFromCloud();
-    if (!ok && !loadLocal()) {
+    const pulled = await pullFromCloud({ silent: true });
+    if (!pulled) {
       await pushToCloud(TripStorage.getState(), true);
     }
     startPolling();
-    markReady("synced");
-    return "synced";
+    markReady(pollErrorCount ? "error" : "synced");
+    return pollErrorCount ? "error" : "synced";
   }
 
   function push(state, immediate) {
-    const wrapped = saveLocal(state);
+    saveLocal(state);
     notify("local-saved");
 
     if (!isConfigured()) {
@@ -238,7 +267,7 @@ const TripSync = (function () {
   }
 
   async function forcePull() {
-    if (isConfigured()) return pullFromCloud();
+    if (isConfigured()) return pullFromCloud({ silent: false });
     const local = loadLocal();
     if (local) {
       applyState(local, true);
@@ -291,7 +320,7 @@ const TripSync = (function () {
 
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && isConfigured()) {
-      pullFromCloud();
+      pullFromCloud({ silent: true });
     }
   });
 
