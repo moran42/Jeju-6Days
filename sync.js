@@ -48,7 +48,12 @@ const TripSync = (function () {
   }
 
   function applySnapshot(data, fromRemote) {
-    TripStorage.applyRemote(data);
+    const applied = TripStorage.applyRemote(data);
+    if (!applied) {
+      notify("error", "Firestore 데이터 형식이 올바르지 않아 기본 일정을 사용합니다.");
+      if (!ready) markReady("offline");
+      return;
+    }
     if (typeof refreshAllPlaces === "function") refreshAllPlaces();
 
     if (fromRemote && !isFirstLoad && !pendingSave) {
@@ -74,20 +79,29 @@ const TripSync = (function () {
       unsubscribe = ref.onSnapshot(
         (snap) => {
           if (!snap.exists) {
-            seedIfEmpty(ref);
+            seedIfEmpty(ref).catch((err) => {
+              console.error("Firestore seed error:", err);
+              if (!ready) markReady("offline");
+              notify("error", err.message);
+            });
             return;
           }
           applySnapshot(snap.data(), true);
         },
         (err) => {
           console.error("Firestore sync error:", err);
-          if (!ready) {
-            DAYS = TripStorage.deepClone(DEFAULT_DAYS);
-            markReady("offline");
-          }
+          if (!ready) markReady("offline");
           notify("error", err.message);
         }
       );
+
+      setTimeout(() => {
+        if (!ready) {
+          console.warn("Firestore sync timeout — using default itinerary");
+          markReady("offline");
+          notify("error", "클라우드 연결 시간 초과");
+        }
+      }, 8000);
     } catch (err) {
       console.error("Firebase init error:", err);
       DAYS = TripStorage.deepClone(DEFAULT_DAYS);

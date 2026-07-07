@@ -6,12 +6,26 @@ const TripStorage = (function () {
     return JSON.parse(JSON.stringify(obj));
   }
 
+  function isValidDays(days) {
+    if (!Array.isArray(days) || !days.length) return false;
+    return days.every(
+      (day) =>
+        day &&
+        typeof day.id === "string" &&
+        Array.isArray(day.stops) &&
+        day.stops.length > 0
+    );
+  }
+
   function applyRemote(data) {
-    if (data.days && Array.isArray(data.days) && data.days.length) {
+    if (!data || typeof data !== "object") return false;
+    if (data.days) {
+      if (!isValidDays(data.days)) return false;
       DAYS = data.days;
     }
     if (Array.isArray(data.kakaoExtra)) kakaoExtra = data.kakaoExtra;
     if (Array.isArray(data.naverExtra)) naverExtra = data.naverExtra;
+    return true;
   }
 
   function getState() {

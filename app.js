@@ -16,9 +16,16 @@
     both: { label: "카카오+네이버", class: "tag-both" },
   };
 
-  let activeDay = DAYS[0].id;
+  let activeDay = DAYS[0]?.id || "day1";
   let viewMode = "timeline";
   window.activeDay = activeDay;
+
+  function ensureActiveDay() {
+    if (!DAYS.find((d) => d.id === activeDay)) {
+      activeDay = DAYS[0]?.id || "day1";
+      window.activeDay = activeDay;
+    }
+  }
 
   function renderSyncStatus(status, detail) {
     const el = document.getElementById("sync-status");
@@ -130,8 +137,10 @@
   }
 
   function renderDayContent() {
+    ensureActiveDay();
     const day = DAYS.find((d) => d.id === activeDay);
     const el = document.getElementById("day-content");
+    if (!day || !el) return;
 
     const swimHtml = day.swim
       ? `<span class="swim-badge">🏊 ${day.swimSpot || "수영"}</span>`
@@ -257,11 +266,14 @@
   }
 
   function refreshAll() {
-    refreshAllPlaces();
+    ensureActiveDay();
+    if (typeof refreshAllPlaces === "function") refreshAllPlaces();
     renderPlacesTotal();
     renderKakaoChecklist();
     renderExtraList();
+    renderDayTabs();
     renderDayContent();
+    renderMapLegend();
     if (window.TripMap) TripMap.updateMap(activeDay);
   }
 
@@ -362,25 +374,27 @@
 
   function boot() {
     renderSyncStatus("connecting");
+    init();
 
     TripSync.onUpdate((status, detail) => {
       renderSyncStatus(status, detail);
       if (
         status === "synced" ||
         status === "offline" ||
-        status === "remote-updated"
+        status === "remote-updated" ||
+        status === "error"
       ) {
-        renderPlacesTotal();
-        renderKakaoChecklist();
-        renderExtraList();
-        renderDayContent();
-        if (window.TripMap) TripMap.updateMap(activeDay);
+        refreshAll();
       }
     });
 
     TripSync.init().then((status) => {
-      init();
-      renderSyncStatus(status === "offline" ? "offline" : "synced");
+      refreshAll();
+      if (status === "offline" || status === "error") {
+        renderSyncStatus(status === "error" ? "error" : "offline");
+      } else {
+        renderSyncStatus("synced");
+      }
     });
   }
 
