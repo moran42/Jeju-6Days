@@ -19,6 +19,7 @@
       <p class="hero-sub" id="hero-sub"></p>
       <div class="sync-row">
         <span id="sync-status" class="sync-status sync-connecting">☁️ 클라우드 연결 중…</span>
+        <button type="button" class="btn-refresh" id="btn-sync-refresh" title="최신 일정 가져오기">↻ 동기화</button>
       </div>
       <div id="sync-banner" class="sync-banner" hidden></div>
       <div class="hero-meta" id="hero-meta"></div>
@@ -61,17 +62,30 @@
     <section class="extra-section">
       <div class="section-header-row">
         <h2>코스 미배정 장소</h2>
-        <button type="button" class="btn-refresh" id="btn-toggle-refresh" title="저장 리스트 새로고침">↻ 새로고침</button>
+        <button type="button" class="btn-refresh" id="btn-toggle-refresh" title="카카오·네이버 링크에서 목록 업데이트">↻ 링크에서 업데이트</button>
       </div>
-      <p class="section-desc">카카오·네이버 저장 장소 중 일정에 없는 곳 — 지도에서 추가한 뒤 아래에 붙여넣기</p>
+      <p class="section-desc">저장한 카카오·네이버 지도 링크에 새로 추가한 장소를 미배정 리스트에 반영</p>
       <div class="refresh-panel" id="refresh-panel" hidden>
-        <p class="refresh-hint">한 줄에 하나씩 입력 · <code>장소이름, 지역/폴더</code> 형식 (예: <code>새카페, 조천읍</code>)</p>
-        <label class="refresh-label">카카오맵 추가 장소</label>
-        <textarea id="refresh-kakao" rows="3" placeholder="로미뮤직하우스, 조천읍"></textarea>
-        <label class="refresh-label">네이버맵 추가 장소</label>
-        <textarea id="refresh-naver" rows="3" placeholder="새맛집, 먹거리"></textarea>
+        <p class="refresh-hint">카카오·네이버는 보안상 앱이 링크를 직접 읽을 수 없어요. 아래 순서로 <strong>저장 링크에 있는 장소만</strong> 가져옵니다.</p>
+
+        <div class="import-step">
+          <h4>① 카카오맵 (공유 폴더)</h4>
+          <ol class="import-steps">
+            <li><button type="button" class="btn-secondary btn-inline" id="btn-open-kakao">카카오맵 폴더 열기</button> (로그인 필요)</li>
+            <li>열린 카카오맵에서 북마클릿 실행 → <a id="kakao-bookmarklet" class="bookmarklet-link" href="#">📍 제주앱으로 보내기</a> <span class="muted-hint">(북마크바에 끌어다 놓기)</span></li>
+          </ol>
+        </div>
+
+        <div class="import-step">
+          <h4>② 네이버맵 (저장 폴더 3개)</h4>
+          <ol class="import-steps">
+            <li><button type="button" class="btn-secondary btn-inline" id="btn-open-naver">네이버 저장 페이지 열기</button></li>
+            <li>열린 네이버 페이지에서 북마클릿 실행 → <a id="naver-bookmarklet" class="bookmarklet-link" href="#">📍 제주앱으로 보내기 (네이버)</a> <span class="muted-hint">(북마크바에 끌어다 놓기)</span></li>
+          </ol>
+          <p class="muted-hint">먹거리·놀거리·디저트 폴더 3개를 한 번에 가져옵니다. 링크에 추가한 장소만 반영돼요.</p>
+        </div>
+
         <div class="refresh-actions">
-          <button type="button" class="btn-primary" id="btn-apply-refresh">미배정 리스트에 반영</button>
           <button type="button" class="btn-ghost" id="btn-close-refresh">닫기</button>
         </div>
       </div>
@@ -88,13 +102,14 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="data.js?v=2"></script>
-  <script src="firebase-config.js?v=2"></script>
-  <script src="sync.js?v=2"></script>
-  <script src="storage.js?v=2"></script>
-  <script src="places-coords.js?v=2"></script>
-  <script src="map.js?v=2"></script>
-  <script src="editor.js?v=2"></script>
-  <script src="app.js?v=2"></script>
+  <script src="data.js?v=5"></script>
+  <script src="firebase-config.js?v=5"></script>
+  <script src="sync.js?v=5"></script>
+  <script src="storage.js?v=5"></script>
+  <script src="places-coords.js?v=5"></script>
+  <script src="map-import.js?v=5"></script>
+  <script src="map.js?v=5"></script>
+  <script src="editor.js?v=5"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>

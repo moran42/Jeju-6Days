@@ -1,6 +1,6 @@
 const TripStorage = (function () {
-  let kakaoExtra = [];
-  let naverExtra = [];
+  let kakaoPlaces = null;
+  let naverPlaces = null;
 
   function deepClone(obj) {
     return JSON.parse(JSON.stringify(obj));
@@ -17,28 +17,47 @@ const TripStorage = (function () {
     );
   }
 
+  function mergePlaceList(existing, incoming, keyField) {
+    const seen = new Set();
+    const merged = [];
+    function add(place) {
+      const name = place[keyField];
+      if (!name || seen.has(name)) return;
+      seen.add(name);
+      merged.push(place);
+    }
+    existing.forEach(add);
+    incoming.forEach(add);
+    return merged;
+  }
+
   function applyRemote(data) {
     if (!data || typeof data !== "object") return false;
     if (data.days) {
       if (!isValidDays(data.days)) return false;
       DAYS = data.days;
     }
-    if (Array.isArray(data.kakaoExtra)) kakaoExtra = data.kakaoExtra;
-    if (Array.isArray(data.naverExtra)) naverExtra = data.naverExtra;
+    if (Array.isArray(data.kakaoPlaces)) kakaoPlaces = data.kakaoPlaces;
+    if (Array.isArray(data.naverPlaces)) naverPlaces = data.naverPlaces;
     return true;
   }
 
   function getState() {
     return {
       days: DAYS,
-      kakaoExtra: deepClone(kakaoExtra),
-      naverExtra: deepClone(naverExtra),
+      kakaoPlaces: kakaoPlaces ? deepClone(kakaoPlaces) : null,
+      naverPlaces: naverPlaces ? deepClone(naverPlaces) : null,
     };
   }
 
   function persist() {
-    if (typeof TripSync !== "undefined" && TripSync.isEnabled()) {
-      TripSync.push(getState());
+    const state = getState();
+    if (typeof TripSync !== "undefined" && TripSync.isConfigured()) {
+      TripSync.push(state);
+      return;
+    }
+    if (typeof TripEditor !== "undefined") {
+      TripEditor.showToast("동기화 미설정 — 이 기기에만 반영됩니다");
     }
   }
 
@@ -62,77 +81,26 @@ const TripStorage = (function () {
     }
   }
 
-  function getKakaoExtra() {
-    return kakaoExtra;
-  }
-
-  function getNaverExtra() {
-    return naverExtra;
-  }
-
   function getKakaoPlaces() {
-    const seen = new Set();
-    const merged = [];
-    [...KAKAO_JEJU_PLACES, ...kakaoExtra].forEach((p) => {
-      if (seen.has(p.name)) return;
-      seen.add(p.name);
-      merged.push(p);
-    });
-    return merged;
+    return kakaoPlaces || KAKAO_JEJU_PLACES;
   }
 
   function getNaverPlaces() {
-    const seen = new Set();
-    const merged = [];
-    [...NAVER_SAVED_PLACES, ...naverExtra].forEach((p) => {
-      if (seen.has(p.name)) return;
-      seen.add(p.name);
-      merged.push(p);
-    });
-    return merged;
+    return naverPlaces || NAVER_SAVED_PLACES;
   }
 
-  function addKakaoPlace(name, area) {
-    if (
-      kakaoExtra.some((p) => p.name === name) ||
-      KAKAO_JEJU_PLACES.some((p) => p.name === name)
-    ) {
-      return false;
-    }
-    kakaoExtra.push({ name, area: area || "제주", source: "kakao" });
+  function importKakaoPlaces(places) {
+    const before = new Set(getKakaoPlaces().map((p) => p.name));
+    kakaoPlaces = mergePlaceList(KAKAO_JEJU_PLACES, places, "name");
     persist();
-    return true;
+    return kakaoPlaces.filter((p) => !before.has(p.name)).length;
   }
 
-  function addNaverPlace(name, folder) {
-    if (
-      naverExtra.some((p) => p.name === name) ||
-      NAVER_SAVED_PLACES.some((p) => p.name === name)
-    ) {
-      return false;
-    }
-    naverExtra.push({ name, folder: folder || "놀거리" });
+  function importNaverPlaces(places) {
+    const before = new Set(getNaverPlaces().map((p) => p.name));
+    naverPlaces = mergePlaceList(NAVER_SAVED_PLACES, places, "name");
     persist();
-    return true;
-  }
-
-  function addPlacesFromText(text, source) {
-    const lines = text
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean);
-    let added = 0;
-    lines.forEach((line) => {
-      const parts = line.split(",").map((s) => s.trim());
-      const name = parts[0];
-      if (!name) return;
-      if (source === "kakao") {
-        if (addKakaoPlace(name, parts[1] || "제주")) added += 1;
-      } else if (addNaverPlace(name, parts[1] || "놀거리")) {
-        added += 1;
-      }
-    });
-    return added;
+    return naverPlaces.filter((p) => !before.has(p.name)).length;
   }
 
   return {
@@ -143,11 +111,8 @@ const TripStorage = (function () {
     resetDay,
     getKakaoPlaces,
     getNaverPlaces,
-    getKakaoExtra,
-    getNaverExtra,
-    addKakaoPlace,
-    addNaverPlace,
-    addPlacesFromText,
+    importKakaoPlaces,
+    importNaverPlaces,
     deepClone,
   };
 })();

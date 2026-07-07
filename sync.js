@@ -5,6 +5,8 @@ const TripSync = (function () {
   let pendingSave = false;
   let saveTimer = null;
   let unsubscribe = null;
+  let queuedState = null;
+  let lastSavedAt = null;
   const listeners = new Set();
 
   function isConfigured() {
@@ -41,8 +43,8 @@ const TripSync = (function () {
   function seedIfEmpty(ref) {
     return ref.set({
       days: TripStorage.deepClone(DEFAULT_DAYS),
-      kakaoExtra: [],
-      naverExtra: [],
+      kakaoPlaces: null,
+      naverPlaces: null,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
   }
@@ -62,6 +64,13 @@ const TripSync = (function () {
     isFirstLoad = false;
     if (!ready) markReady("synced");
     else notify("synced");
+  }
+
+  function flushQueue() {
+    if (!enabled || !queuedState) return;
+    const state = queuedState;
+    queuedState = null;
+    push(state, true);
   }
 
   function initOffline() {
@@ -87,6 +96,7 @@ const TripSync = (function () {
             return;
           }
           applySnapshot(snap.data(), true);
+          flushQueue();
         },
         (err) => {
           console.error("Firestore sync error:", err);
@@ -119,34 +129,69 @@ const TripSync = (function () {
     return whenReady();
   }
 
-  function push(state) {
-    if (!enabled) return;
+  function push(state, immediate) {
+    if (!isConfigured()) return Promise.resolve(false);
+
+    if (!enabled) {
+      queuedState = state;
+      notify("connecting");
+      return Promise.resolve(false);
+    }
 
     clearTimeout(saveTimer);
     pendingSave = true;
     notify("saving");
 
-    saveTimer = setTimeout(async () => {
-      try {
-        await docRef().set(
+    const doSave = () =>
+      docRef()
+        .set(
           {
             days: state.days,
-            kakaoExtra: state.kakaoExtra,
-            naverExtra: state.naverExtra,
+            kakaoPlaces: state.kakaoPlaces,
+            naverPlaces: state.naverPlaces,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
           },
           { merge: true }
-        );
-      } catch (err) {
-        console.error("Firestore save error:", err);
-        notify("error", err.message);
-      } finally {
-        setTimeout(() => {
-          pendingSave = false;
-          notify("synced");
-        }, 300);
-      }
-    }, 500);
+        )
+        .then(() => {
+          lastSavedAt = new Date();
+          notify("saved");
+          return true;
+        })
+        .catch((err) => {
+          console.error("Firestore save error:", err);
+          notify("error", err.message);
+          return false;
+        })
+        .finally(() => {
+          setTimeout(() => {
+            pendingSave = false;
+            notify("synced");
+          }, 200);
+        });
+
+    if (immediate) return doSave();
+
+    return new Promise((resolve) => {
+      saveTimer = setTimeout(async () => {
+        resolve(await doSave());
+      }, 500);
+    });
+  }
+
+  async function forcePull() {
+    if (!enabled) return false;
+    try {
+      const snap = await docRef().get();
+      if (!snap.exists) return false;
+      applySnapshot(snap.data(), true);
+      notify("synced");
+      return true;
+    } catch (err) {
+      console.error("Firestore pull error:", err);
+      notify("error", err.message);
+      return false;
+    }
   }
 
   function onUpdate(fn) {
@@ -167,12 +212,18 @@ const TripSync = (function () {
     });
   }
 
+  function getLastSavedAt() {
+    return lastSavedAt;
+  }
+
   return {
     init,
     push,
+    forcePull,
     onUpdate,
     whenReady,
     isConfigured,
     isEnabled: () => enabled,
+    getLastSavedAt,
   };
 })();

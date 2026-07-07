@@ -36,6 +36,7 @@
       connecting: { text: "☁️ 클라우드 연결 중…", cls: "sync-connecting" },
       synced: { text: "🟢 실시간 동기화 중", cls: "sync-ok" },
       saving: { text: "💾 저장 중…", cls: "sync-saving" },
+      saved: { text: "✅ 클라우드에 저장됨", cls: "sync-ok" },
       offline: { text: "⚠️ 동기화 미설정", cls: "sync-offline" },
       error: { text: "🔴 동기화 오류", cls: "sync-error" },
       "remote-updated": { text: "🟢 실시간 동기화 중", cls: "sync-ok" },
@@ -57,6 +58,12 @@
       } else {
         banner.hidden = true;
       }
+    }
+
+    if (status === "saved" && window.TripEditor) {
+      TripEditor.showToast("클라우드에 저장됐어요 · 휴대폰에서 새로고침하세요");
+      setTimeout(() => renderSyncStatus("synced"), 2000);
+      return;
     }
 
     if (status === "remote-updated" && window.TripEditor) {
@@ -308,11 +315,62 @@
     });
   }
 
+  function bindSyncRefresh() {
+    const btn = document.getElementById("btn-sync-refresh");
+    if (btn) {
+      btn.addEventListener("click", async () => {
+        renderSyncStatus("connecting");
+        const ok = await TripSync.forcePull();
+        refreshAll();
+        if (window.TripEditor) {
+          TripEditor.showToast(
+            ok ? "최신 일정을 불러왔어요" : "동기화에 실패했어요"
+          );
+        }
+        renderSyncStatus(ok ? "synced" : "error");
+      });
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && TripSync.isEnabled()) {
+        TripSync.forcePull().then((ok) => {
+          if (ok) refreshAll();
+        });
+      }
+    });
+  }
+
   function bindRefreshPanel() {
     const panel = document.getElementById("refresh-panel");
     const btnToggle = document.getElementById("btn-toggle-refresh");
-    const btnApply = document.getElementById("btn-apply-refresh");
     const btnClose = document.getElementById("btn-close-refresh");
+    const btnOpenKakao = document.getElementById("btn-open-kakao");
+    const btnOpenNaver = document.getElementById("btn-open-naver");
+    const bookmarklet = document.getElementById("kakao-bookmarklet");
+    const naverBookmarklet = document.getElementById("naver-bookmarklet");
+
+    if (bookmarklet && window.MapImport) {
+      bookmarklet.href = MapImport.getBookmarkletHref();
+    }
+
+    if (naverBookmarklet && window.MapImport) {
+      naverBookmarklet.href = MapImport.getNaverBookmarkletHref();
+    }
+
+    if (window.MapImport) {
+      MapImport.initListener((added, source) => {
+        refreshAll();
+        panel.hidden = true;
+        if (window.TripEditor) {
+          const label = source === "naver" ? "네이버맵" : "카카오맵";
+          TripEditor.showToast(
+            added > 0
+              ? `${label}에서 ${added}곳이 미배정에 추가됐어요`
+              : "새 장소가 없거나 이미 반영됐어요"
+          );
+        }
+      });
+    }
 
     btnToggle.addEventListener("click", () => {
       panel.hidden = !panel.hidden;
@@ -322,27 +380,12 @@
       panel.hidden = true;
     });
 
-    btnApply.addEventListener("click", () => {
-      const kakaoText = document.getElementById("refresh-kakao").value;
-      const naverText = document.getElementById("refresh-naver").value;
-      let added = 0;
-      if (kakaoText.trim()) {
-        added += TripStorage.addPlacesFromText(kakaoText, "kakao");
-      }
-      if (naverText.trim()) {
-        added += TripStorage.addPlacesFromText(naverText, "naver");
-      }
-      document.getElementById("refresh-kakao").value = "";
-      document.getElementById("refresh-naver").value = "";
-      refreshAll();
-      panel.hidden = true;
-      if (window.TripEditor) {
-        TripEditor.showToast(
-          added > 0
-            ? `${added}곳이 미배정 리스트에 추가되었어요`
-            : "새 장소가 없거나 이미 등록된 곳이에요"
-        );
-      }
+    btnOpenKakao.addEventListener("click", () => {
+      if (window.MapImport) MapImport.openKakaoFolder();
+    });
+
+    btnOpenNaver.addEventListener("click", () => {
+      if (window.MapImport) MapImport.openNaverImportPage();
     });
   }
 
@@ -358,6 +401,7 @@
     renderExtraList();
     bindTabs();
     bindViewToggle();
+    bindSyncRefresh();
     bindRefreshPanel();
 
     if (window.TripEditor) {

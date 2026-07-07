@@ -133,9 +133,18 @@
       saveCurrentDay(dayId, container);
     });
 
-    container.querySelector("#btn-save-stops").addEventListener("click", () => {
+    container.querySelector("#btn-save-stops").addEventListener("click", async () => {
       saveCurrentDay(dayId, container);
-      showToast("일정이 저장되었어요 · 메이트에게도 반영됩니다");
+      if (typeof TripSync !== "undefined" && TripSync.isConfigured()) {
+        const ok = await TripSync.push(TripStorage.getState(), true);
+        if (ok) {
+          showToast("클라우드에 저장됐어요 · 휴대폰에서 ↻ 동기화 누르세요");
+        } else {
+          showToast("저장 실패 — 🟢 동기화 확인 후 다시 시도해주세요");
+        }
+      } else {
+        showToast("동기화 미설정 — Firebase 설정이 필요해요");
+      }
     });
 
     container.querySelector("#btn-reset-day").addEventListener("click", () => {

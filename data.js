@@ -23,6 +23,33 @@ const TRIP = {
     naverPlay: { label: "네이버 놀거리", url: "https://naver.me/Gi0OR11p" },
     naverDessert: { label: "네이버 디저트", url: "https://naver.me/GahyuPIM" },
   },
+  mapImport: {
+    kakao: {
+      folderId: "10903649",
+      folderUrl:
+        "https://map.kakao.com/?map_type=TYPE_MAP&folderid=10903649&target=other&page=bookmark",
+    },
+    naver: [
+      {
+        key: "food",
+        label: "먹거리",
+        url: "https://naver.me/5wrj0ShJ",
+        shareId: "7ca97761605e46a18b844e030b6039a3",
+      },
+      {
+        key: "play",
+        label: "놀거리",
+        url: "https://naver.me/Gi0OR11p",
+        shareId: "371240aaf2d34514abe4183435f83726",
+      },
+      {
+        key: "dessert",
+        label: "디저트",
+        url: "https://naver.me/GahyuPIM",
+        shareId: "9244aee2bd4d423e86d9cf0af5e34744",
+      },
+    ],
+  },
 };
 
 const DEFAULT_DAYS = [

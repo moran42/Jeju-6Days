@@ -63,6 +63,10 @@ body {
 
 .sync-row {
   margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .sync-status {
@@ -708,6 +712,45 @@ footer {
   gap: 0.5rem;
   margin-top: 0.75rem;
   flex-wrap: wrap;
+}
+
+.import-step {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
+}
+
+.import-step h4 {
+  font-size: 0.88rem;
+  margin-bottom: 0.45rem;
+}
+
+.import-steps {
+  margin: 0.25rem 0 0 1.1rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.btn-inline {
+  display: inline-block;
+  margin: 0.15rem 0;
+}
+
+.bookmarklet-link {
+  display: inline-block;
+  padding: 0.25rem 0.55rem;
+  background: #fee500;
+  color: #3c1e1e;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.muted-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
 }
 
 .btn-primary {
